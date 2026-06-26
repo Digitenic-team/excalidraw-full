@@ -152,12 +152,17 @@ func setupRouter(store stores.Store) *chi.Mux {
 					r.Get("/", kv.HandleGetCanvas(store))
 					r.Put("/", kv.HandleSaveCanvas(store))
 					r.Delete("/", kv.HandleDeleteCanvas(store))
+					r.Post("/publish", kv.HandlePublishCanvas(store))
+					r.Delete("/publish", kv.HandleUnpublishCanvas(store))
 				})
 			})
 			r.Route("/chat", func(r chi.Router) {
 				r.Post("/completions", openai.HandleChatCompletion())
 			})
 		})
+
+		// Public, unauthenticated read of a shared canvas snapshot by share token.
+		r.Get("/public/{shareId}", kv.HandleGetPublicCanvas(store))
 
 		// Old routes for anonymous document sharing
 		r.Post("/post/", documents.HandleCreate(store))

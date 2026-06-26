@@ -70,6 +70,23 @@ func (s *fsStore) Create(ctx context.Context, document *core.Document) (string, 
 	return id, nil
 }
 
+// SaveDocument upserts a document under a caller-supplied id. Part of the DocumentStore interface.
+func (s *fsStore) SaveDocument(ctx context.Context, id string, document *core.Document) error {
+	filePath := filepath.Join(s.basePath, id)
+	log := logrus.WithFields(logrus.Fields{
+		"document_id": id,
+		"file_path":   filePath,
+	})
+
+	if err := os.WriteFile(filePath, document.Data.Bytes(), 0644); err != nil {
+		log.WithError(err).Error("Failed to save document")
+		return err
+	}
+
+	log.Info("Document saved successfully")
+	return nil
+}
+
 // CanvasStore implementation for user-owned canvases
 func (s *fsStore) getUserCanvasPath(userID string) string {
 	return filepath.Join(s.basePath, userID)

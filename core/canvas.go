@@ -12,7 +12,9 @@ type (
 		UserID    string    `json:"-"` // Not exposed in JSON responses, used internally.
 		Name      string    `json:"name"`
 		Thumbnail string    `json:"thumbnail,omitempty"`
-		Data      []byte    `json:"data,omitempty"` // The full canvas data, not included in list views.
+		Data      []byte    `json:"data,omitempty"`    // The full canvas data, not included in list views.
+		ShareID   string    `json:"shareId,omitempty"` // Stable public share token, generated once on first publish.
+		Public    bool      `json:"public,omitempty"`  // Whether the canvas is currently shared publicly (view-only).
 		CreatedAt time.Time `json:"createdAt"`
 		UpdatedAt time.Time `json:"updatedAt"`
 	}

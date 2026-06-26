@@ -78,6 +78,19 @@ func (s *s3Store) Create(ctx context.Context, document *core.Document) (string, 
 	return id, nil
 }
 
+// SaveDocument upserts a document under a caller-supplied id. Part of the DocumentStore interface.
+func (s *s3Store) SaveDocument(ctx context.Context, id string, document *core.Document) error {
+	_, err := s.s3Client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(id),
+		Body:   bytes.NewReader(document.Data.Bytes()),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to save document %s: %v", id, err)
+	}
+	return nil
+}
+
 // CanvasStore implementation for user-owned canvases
 func (s *s3Store) getCanvasKey(userID, canvasID string) (string, error) {
 	// Sanitize canvasID to prevent path traversal attacks.
