@@ -57,6 +57,19 @@ func (s *memStore) Create(ctx context.Context, document *core.Document) (string,
 	return id, nil
 }
 
+// SaveDocument upserts a document under a caller-supplied id. Part of the DocumentStore interface.
+func (s *memStore) SaveDocument(ctx context.Context, id string, document *core.Document) error {
+	mu.Lock()
+	defer mu.Unlock()
+
+	savedDocuments[id] = *document
+	logrus.WithFields(logrus.Fields{
+		"document_id": id,
+		"data_length": len(document.Data.Bytes()),
+	}).Info("Document saved successfully")
+	return nil
+}
+
 // List returns metadata for all canvases owned by a user. Part of the CanvasStore interface.
 func (s *memStore) List(ctx context.Context, userID string) ([]*core.Canvas, error) {
 	mu.RLock()

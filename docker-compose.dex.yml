@@ -35,7 +35,7 @@ services:
     network_mode: service:netpod
 
   excalidraw:
-    image: ghcr.io/betterandbetterii/excalidraw-full:latest
+    image: ghcr.io/digitenic-team/excalidraw-full:latest
     volumes:
       - ./data:/root/data
       - ./excalidraw.db:/root/excalidraw.db:Z
