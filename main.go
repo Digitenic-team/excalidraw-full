@@ -45,6 +45,27 @@ type (
 //go:embed all:frontend
 var assets embed.FS
 
+// storageBackendConfigScript builds the inline <script> that exposes the
+// deploy-time data-source configuration to the frontend. The deployment team
+// sets the backend via env vars (no image rebuild required); the frontend reads
+// window.__EXCALIDRAW_CONFIG__ at startup and locks the data source accordingly.
+func storageBackendConfigScript() string {
+	allowed := map[string]bool{"default": true, "indexed-db": true, "kv": true, "s3": true}
+	pick := func(envKey, fallback string) string {
+		v := os.Getenv(envKey)
+		if allowed[v] {
+			return v
+		}
+		return fallback
+	}
+	authenticated := pick("STORAGE_BACKEND_AUTHENTICATED", "default")
+	anonymous := pick("STORAGE_BACKEND_ANONYMOUS", "indexed-db")
+	return fmt.Sprintf(
+		`<script>window.__EXCALIDRAW_CONFIG__={"storageBackendAuthenticated":%q,"storageBackendAnonymous":%q}</script>`,
+		authenticated, anonymous,
+	)
+}
+
 func handleUI() http.HandlerFunc {
 	sub, err := fs.Sub(assets, "frontend")
 	if err != nil {
@@ -95,6 +116,14 @@ func handleUI() http.HandlerFunc {
 		modifiedContent := strings.ReplaceAll(string(fileContent), "firestore.googleapis.com", backendHost)
 		modifiedContent = strings.ReplaceAll(modifiedContent, "ssl=!0", "ssl=0")
 		modifiedContent = strings.ReplaceAll(modifiedContent, "ssl:!0", "ssl:0")
+
+		// Inject the deploy-time storage backend config into the HTML shell so the
+		// frontend can lock the data source. Only relevant for index.html.
+		if strings.HasSuffix(path, ".html") {
+			modifiedContent = strings.Replace(
+				modifiedContent, "</head>", storageBackendConfigScript()+"</head>", 1,
+			)
+		}
 
 		// Set the correct Content-Type based on the file extension
 		contentType := http.DetectContentType([]byte(modifiedContent))

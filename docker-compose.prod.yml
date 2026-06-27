@@ -11,6 +11,12 @@
 # if needed. DATA_SOURCE_NAME MUST live under /root/data (the only persisted
 # path, see volumes), otherwise the SQLite DB is lost on every redeploy.
 #
+# Data source (where canvases are stored), set once by the deployment team and
+# not user-selectable. Authenticated users use STORAGE_BACKEND_AUTHENTICATED;
+# logged-out users use STORAGE_BACKEND_ANONYMOUS. Valid values:
+# default | indexed-db | kv | s3. Defaults give logged-in users the server
+# backend and anonymous users local browser (IndexedDB) storage.
+#
 # The app listens on 3002; route your domain/reverse proxy to the exposed port.
 services:
   excalidraw:
@@ -23,6 +29,8 @@ services:
       - JWT_SECRET
       - STORAGE_TYPE=${STORAGE_TYPE:-sqlite}
       - DATA_SOURCE_NAME=${DATA_SOURCE_NAME:-/root/data/excalidraw.db}
+      - STORAGE_BACKEND_AUTHENTICATED=${STORAGE_BACKEND_AUTHENTICATED:-default}
+      - STORAGE_BACKEND_ANONYMOUS=${STORAGE_BACKEND_ANONYMOUS:-indexed-db}
     volumes:
       # Persist ONLY the data dir. Never mount /root: it holds the app binary
       # (/root/main) and a volume there would shadow image updates.
