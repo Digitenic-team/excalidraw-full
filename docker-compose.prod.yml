@@ -1,21 +1,28 @@
 # Production compose.
 #
-# This file intentionally lists NO environment variables. Set them in your
-# host/platform environment so they are injected into the container:
+# Secrets are NOT hardcoded here. The names listed below are passed through from
+# the host/platform environment into the container by Docker Compose — set their
+# values in your environment:
 #   GITHUB_CLIENT_ID
 #   GITHUB_CLIENT_SECRET
 #   GITHUB_REDIRECT_URL
 #   JWT_SECRET
-#   STORAGE_TYPE=sqlite
-#   DATA_SOURCE_NAME=/root/data/excalidraw.db
-#     ^ MUST live under /root/data (the only persisted path, see volumes below),
-#       otherwise the SQLite DB is lost on every redeploy.
+# STORAGE_TYPE and DATA_SOURCE_NAME default below; override via the environment
+# if needed. DATA_SOURCE_NAME MUST live under /root/data (the only persisted
+# path, see volumes), otherwise the SQLite DB is lost on every redeploy.
 #
 # The app listens on 3002; route your domain/reverse proxy to the exposed port.
 services:
   excalidraw:
     image: ghcr.io/digitenic-team/excalidraw-full:latest
     restart: always
+    environment:
+      - GITHUB_CLIENT_ID
+      - GITHUB_CLIENT_SECRET
+      - GITHUB_REDIRECT_URL
+      - JWT_SECRET
+      - STORAGE_TYPE=${STORAGE_TYPE:-sqlite}
+      - DATA_SOURCE_NAME=${DATA_SOURCE_NAME:-/root/data/excalidraw.db}
     volumes:
       # Persist ONLY the data dir. Never mount /root: it holds the app binary
       # (/root/main) and a volume there would shadow image updates.
