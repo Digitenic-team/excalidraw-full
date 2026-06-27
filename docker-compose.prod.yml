@@ -1,0 +1,33 @@
+# Production compose.
+#
+# This file intentionally lists NO environment variables. Set them in your
+# host/platform environment so they are injected into the container:
+#   GITHUB_CLIENT_ID
+#   GITHUB_CLIENT_SECRET
+#   GITHUB_REDIRECT_URL
+#   JWT_SECRET
+#   STORAGE_TYPE=sqlite
+#   DATA_SOURCE_NAME=/root/data/excalidraw.db
+#     ^ MUST live under /root/data (the only persisted path, see volumes below),
+#       otherwise the SQLite DB is lost on every redeploy.
+#
+# The app listens on 3002; route your domain/reverse proxy to the exposed port.
+services:
+  excalidraw:
+    image: ghcr.io/digitenic-team/excalidraw-full:latest
+    restart: always
+    volumes:
+      # Persist ONLY the data dir. Never mount /root: it holds the app binary
+      # (/root/main) and a volume there would shadow image updates.
+      - excalidraw-data:/root/data
+    expose:
+      - "3002"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3002/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  excalidraw-data:
