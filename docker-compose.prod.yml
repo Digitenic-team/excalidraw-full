@@ -21,6 +21,10 @@
 services:
   excalidraw:
     image: ghcr.io/digitenic-team/excalidraw-full:latest
+    # Always re-pull on deploy. The :latest tag is reused across builds, so its
+    # content changes while the name stays the same. Without this, `up`/redeploy
+    # keeps the locally cached image and silently runs stale code.
+    pull_policy: always
     restart: always
     environment:
       - GITHUB_CLIENT_ID
