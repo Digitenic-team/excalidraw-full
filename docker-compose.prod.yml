@@ -35,6 +35,10 @@ services:
       - DATA_SOURCE_NAME=${DATA_SOURCE_NAME:-/root/data/excalidraw.db}
       - STORAGE_BACKEND_AUTHENTICATED=${STORAGE_BACKEND_AUTHENTICATED:-default}
       - STORAGE_BACKEND_ANONYMOUS=${STORAGE_BACKEND_ANONYMOUS:-indexed-db}
+      # Access control: when ACCESS_CONTROL_ENABLED=true, only ALLOWED_EMAILS
+      # (comma-separated) may obtain a session.
+      - ACCESS_CONTROL_ENABLED=${ACCESS_CONTROL_ENABLED:-false}
+      - ALLOWED_EMAILS=${ALLOWED_EMAILS:-}
     volumes:
       # Persist ONLY the data dir. Never mount /root: it holds the app binary
       # (/root/main) and a volume there would shadow image updates.

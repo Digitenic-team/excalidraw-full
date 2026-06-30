@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -34,6 +35,9 @@ var (
 	oidcOauthConfig *oauth2.Config
 	oidcProvider    *oidc.Provider
 	verifier        *oidc.IDTokenVerifier
+
+	accessControlEnabled bool
+	allowedEmails        map[string]bool
 )
 
 // AppClaims represents the custom claims for the JWT.
@@ -81,6 +85,46 @@ func InitAuth() {
 	if len(jwtSecret) == 0 {
 		logrus.Warn("JWT_SECRET is not set. Authentication will not work.")
 	}
+
+	initAccessControl()
+}
+
+// initAccessControl reads the email allowlist configuration. When
+// ACCESS_CONTROL_ENABLED is true, only users whose email appears in
+// ALLOWED_EMAILS (comma-separated) are permitted to obtain a session.
+func initAccessControl() {
+	accessControlEnabled = strings.EqualFold(strings.TrimSpace(os.Getenv("ACCESS_CONTROL_ENABLED")), "true")
+
+	allowedEmails = make(map[string]bool)
+	for _, e := range strings.Split(os.Getenv("ALLOWED_EMAILS"), ",") {
+		e = strings.ToLower(strings.TrimSpace(e))
+		if e != "" {
+			allowedEmails[e] = true
+		}
+	}
+
+	if accessControlEnabled {
+		logrus.Infof("Access control enabled: %d email(s) allowlisted.", len(allowedEmails))
+		if len(allowedEmails) == 0 {
+			logrus.Warn("ACCESS_CONTROL_ENABLED is true but ALLOWED_EMAILS is empty — nobody will be able to log in.")
+		}
+	} else {
+		logrus.Info("Access control disabled: any authenticated user may log in.")
+	}
+}
+
+// isEmailAllowed reports whether the given email may obtain a session.
+func isEmailAllowed(email string) bool {
+	if !accessControlEnabled {
+		return true
+	}
+	return allowedEmails[strings.ToLower(strings.TrimSpace(email))]
+}
+
+// denyAccess sends the user back to the app with an access-denied marker.
+func denyAccess(w http.ResponseWriter, r *http.Request, email string) {
+	logrus.Warnf("access denied for email %q (not in allowlist)", email)
+	http.Redirect(w, r, "/?error=access_denied", http.StatusTemporaryRedirect)
 }
 
 func HandleLogin(w http.ResponseWriter, r *http.Request) {
@@ -226,10 +270,20 @@ func HandleGitHubCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The /user endpoint only returns an email when the user has made it
+	// public, so fetch the verified primary email explicitly for the allowlist.
+	email := fetchGitHubPrimaryEmail(client)
+
+	if !isEmailAllowed(email) {
+		denyAccess(w, r, email)
+		return
+	}
+
 	// Create user object using Subject instead of GitHubID
 	user := &core.User{
 		Subject:   fmt.Sprintf("github:%d", githubUser.ID),
 		Login:     githubUser.Login,
+		Email:     email,
 		AvatarURL: githubUser.AvatarURL,
 		Name:      githubUser.Name,
 	}
@@ -243,6 +297,45 @@ func HandleGitHubCallback(w http.ResponseWriter, r *http.Request) {
 
 	// Redirect to frontend with token
 	http.Redirect(w, r, fmt.Sprintf("/?token=%s", jwtToken), http.StatusTemporaryRedirect)
+}
+
+// fetchGitHubPrimaryEmail returns the user's primary verified email, falling
+// back to any verified email. Returns "" if none can be determined.
+func fetchGitHubPrimaryEmail(client *http.Client) string {
+	resp, err := client.Get("https://api.github.com/user/emails")
+	if err != nil {
+		logrus.Errorf("failed to fetch github emails: %s", err.Error())
+		return ""
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		logrus.Errorf("failed to read github emails response: %s", err.Error())
+		return ""
+	}
+
+	var emails []struct {
+		Email    string `json:"email"`
+		Primary  bool   `json:"primary"`
+		Verified bool   `json:"verified"`
+	}
+	if err := json.Unmarshal(body, &emails); err != nil {
+		logrus.Errorf("failed to unmarshal github emails: %s", err.Error())
+		return ""
+	}
+
+	for _, e := range emails {
+		if e.Primary && e.Verified {
+			return e.Email
+		}
+	}
+	for _, e := range emails {
+		if e.Verified {
+			return e.Email
+		}
+	}
+	return ""
 }
 
 func HandleOIDCLogin(w http.ResponseWriter, r *http.Request) {
@@ -313,6 +406,11 @@ func HandleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 	if err := idToken.Claims(&claims); err != nil {
 		logrus.Errorf("failed to extract claims from ID token: %s", err.Error())
 		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
+		return
+	}
+
+	if !isEmailAllowed(claims.Email) {
+		denyAccess(w, r, claims.Email)
 		return
 	}
 
